@@ -51,6 +51,19 @@
   .overlay button.primary{background:#c2410c;color:#fff}
   .overlay .tiny{color:#6b5f4d;opacity:1}
   .big{font-size:52px;font-weight:900;color:#c2410c;margin:8px 0}
+  #duelTop{top:10px;left:10px;right:160px;display:flex;gap:8px;flex-wrap:wrap}
+  #duelTop .me{background:rgba(22,101,52,.75)}
+  #duelTop .foe{background:rgba(153,27,27,.75)}
+  #dTurn.mine{background:#c2410c}
+  .joinrow{display:flex;gap:8px;margin-top:10px}
+  .joinrow input{flex:1;min-width:0;font:inherit;font-size:22px;font-weight:800;letter-spacing:6px;text-align:center;
+    padding:10px;border-radius:12px;border:2px solid #d6cbb5;background:#fff;color:#2a2116}
+  .joinrow button{flex:0 0 auto;padding:12px 18px}
+  #roomBox{text-align:center;margin-top:12px;padding:10px;border-radius:14px;background:#fff3e0}
+  #roomCode{font-size:56px;font-weight:900;letter-spacing:10px;color:#c2410c;line-height:1.1}
+  .chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:15px;font-weight:600}
+  .chk input{width:20px;height:20px;accent-color:#c2410c}
+  .or{text-align:center;color:#8a7d66;margin:12px 0 0;font-size:14px}
   @media (max-width:700px){
     #panel{width:220px}.readout b{font-size:16px}
     #map{width:100px;height:160px}#top{right:118px}
@@ -70,6 +83,12 @@
   <div class="pill"><small>연속 명중</small><span id="hCombo">0</span></div>
   <div class="pill"><small>바람</small><span id="hWind">없음</span></div>
   <div class="pill"><small>최고 점수</small><span id="hBest">0</span></div>
+</div>
+<div id="duelTop" class="hud" style="display:none">
+  <div class="pill" id="dTurn">⏳ 상대 차례</div>
+  <div class="pill me"><small>우리 성</small><span id="dMe">-</span></div>
+  <div class="pill foe"><small>상대 성</small><span id="dFoe">-</span></div>
+  <div class="pill"><small>바람</small><span id="dWind">없음</span></div>
 </div>
 <canvas id="map"></canvas>
 <div id="hint" class="hud">🖐 화면을 누른 채 아래로 당겼다가 놓으세요</div>
@@ -104,7 +123,7 @@
 <div class="overlay" id="intro">
   <div class="box">
     <h1>🏰 투석기 공성전</h1>
-    <p>성 안에 무작위로 나타나는 물건을 투석기로 맞혀 보세요!</p>
+    <p>혼자서는 성 안의 물건을 맞히고, 둘이서는 태블릿 2대로 서로의 성을 공격해요!</p>
     <ul>
       <li>📱 태블릿을 <b>앞뒤로 기울이면 발사각</b>, <b>좌우로 기울이면 방향</b>이 바뀝니다.</li>
       <li>🖐 화면을 누른 채 <b>아래로 당길수록 힘이 세지고</b>, 손을 떼면 돌멩이가 날아갑니다.</li>
@@ -115,18 +134,46 @@
       <button id="startSensor" class="primary">📱 기울기 센서로 시작</button>
       <button id="startTouch">🖐 터치로만 시작</button>
     </div>
+    <div class="btns"><button id="startDuel" class="primary" style="background:#1d4ed8">⚔️ 1:1 대전 (태블릿 2대)</button></div>
     <p class="tiny" id="introNote">기울기 센서는 https 주소에서만 동작합니다. 시작할 때 들고 있는 자세가 기준(발사각 45°)이 됩니다.</p>
+  </div>
+</div>
+
+<div class="overlay" id="lobby" style="display:none">
+  <div class="box">
+    <h1>⚔️ 1:1 대전</h1>
+    <ul>
+      <li>한 사람이 <b>방 만들기</b>를 누르고, 다른 사람은 그 <b>방 번호</b>로 참가해요.</li>
+      <li>방장이 먼저 쏘고, 한 번씩 번갈아 쏩니다.</li>
+      <li>상대 성 안의 <b>👑 왕관</b>을 먼저 맞히면 승리!</li>
+      <li>둘 다 돌 10개를 다 쓰면 <b>상대 성을 더 많이 부순 쪽</b>이 이겨요.</li>
+    </ul>
+    <label class="chk"><input type="checkbox" id="duelSensor" checked> 📱 기울기 센서로 조준하기</label>
+    <div class="btns"><button id="bHost" class="primary">🏰 방 만들기</button></div>
+    <div id="roomBox" style="display:none">
+      <div class="tiny">우리 방 번호</div>
+      <div id="roomCode">----</div>
+    </div>
+    <p class="or">또는 친구가 만든 방에 참가</p>
+    <div class="joinrow">
+      <input id="joinCode" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" autocomplete="off">
+      <button id="bJoin" class="primary" style="background:#1d4ed8">참가하기</button>
+    </div>
+    <p class="tiny" id="lobbyTxt" style="min-height:1.4em;margin-top:10px"></p>
+    <div class="btns"><button id="bBack">← 처음으로</button></div>
   </div>
 </div>
 
 <div class="overlay" id="over" style="display:none">
   <div class="box" style="text-align:center">
-    <h1>⚔️ 공성전 종료!</h1>
+    <h1 id="oTitle">⚔️ 공성전 종료!</h1>
     <div class="big" id="oScore">0</div>
     <p id="oDetail"></p>
-    <div class="btns"><button class="primary" id="again">다시 하기</button></div>
+    <div class="btns"><button class="primary" id="again">다시 하기</button><button id="toMenu">처음으로</button></div>
   </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
@@ -187,7 +234,7 @@ const M = {
 
 // 땅 (가운데는 평평하고 바깥쪽은 언덕)
 function groundY(x, z){
-  const d = Math.max(Math.abs(x) - 70, -z - 140, z - 45, 0);
+  const d = Math.max(Math.abs(x) - 70, -z - 140, z - 75, 0);
   return d > 0 ? d * 0.28 * (1 + 0.5 * Math.sin(x * 0.05) * Math.cos(z * 0.07)) : 0;
 }
 {
@@ -216,7 +263,7 @@ function tree(x, z, s){
 }
 for (let i = 0; i < 70;){
   const x = rand(-110, 110), z = rand(-140, 40);
-  if (Math.abs(x) < 28 && z > -85 && z < 25) continue;
+  if (Math.abs(x) < 28 && z > -85 && z < 60) continue;
   tree(x, z, rand(0.9, 1.6)); i++;
 }
 
@@ -232,52 +279,64 @@ const ctr = i => (i + 0.5) * CELL;                  // 블록 i의 중심 좌표
 const span = (a, b) => [Math.ceil(a / CELL - 0.5), Math.floor(b / CELL - 0.5)];
 const cellAt = (i, j, k) => { const c = cells.get(keyOf(i, j, k)); return c && c.alive ? c : null; };
 
-function putCell(i, j, k, base){
-  const key = keyOf(i, j, k), old = cells.get(key);
-  if (old){ if (base !== 'stone') old.base = base; return old; }
-  const c = {i, j, k, base, alive: true, idx: -1, shade: rand(0.86, 1.08)};
-  cells.set(key, c); return c;
-}
-// 상자 영역을 블록으로 채움. baseFn이 null을 돌려주면 그 칸은 비움
-function fillBox(x0, x1, y0, y1, z0, z1, baseFn){
-  const [i0, i1] = span(x0, x1), [j0, j1] = span(y0, y1), [k0, k1] = span(z0, z1);
-  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++){
-    const b = typeof baseFn === 'function' ? baseFn(ctr(i), ctr(j), ctr(k)) : (baseFn || 'stone');
-    if (b) putCell(i, j, k, b);
-  }
-}
-function wallSeg(x, z, w, d, baseFn){
-  fillBox(x - w / 2, x + w / 2, 0, C.wallH, z - d / 2, z + d / 2, baseFn || 'stone');
-  const alongX = w > d;
-  fillBox(x - w / 2, x + w / 2, C.wallH, C.wallH + 1, z - d / 2, z + d / 2,
-    (px, py, pz) => ((Math.floor(alongX ? px : pz) % 2) + 2) % 2 === 0 ? 'stoneD' : null);
-}
 function flag(x, y, z, color, parent = scene){
   cyl(0.06, 0.06, 2.2, M.woodD, parent, x, y + 1.1, z, 6);
   const geo = new THREE.PlaneGeometry(1.5, 0.9); geo.translate(0.75, 0, 0);
   const f = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color, side: THREE.DoubleSide}));
   f.position.set(x, y + 1.75, z); parent.add(f); flags.push({mesh: f, ph: Math.random() * 6});
 }
-// 지붕: 받치는 블록이 많이 부서지면 떨어짐
-function addRoof(x, baseY, z, support, col){
-  const g = new THREE.Group(); g.position.set(x, baseY, z); scene.add(g);
-  colliders.push(col);
-  const r = {g, x, z, baseY, support, col, falling: false, gone: false, vy: 0, spin: 0};
-  roofs.push(r); return r;
-}
-function tower(x, z, r, ht, fc){
-  const [i0, i1] = span(x - r, x + r), [k0, k1] = span(z - r, z + r), [, j1] = span(0, ht);
-  const top = [];
-  for (let i = i0; i <= i1; i++) for (let k = k0; k <= k1; k++){
-    const d = Math.hypot(ctr(i) - x, ctr(k) - z);
-    if (d > r || d < r - 1.1) continue;               // 속이 빈 원통
-    for (let j = 0; j <= j1; j++){ const c = putCell(i, j, k, 'stone'); if (j === j1) top.push(c); }
+
+// 대전에서는 두 진영이 점 (0, MIRROR_Z/2)을 중심으로 180° 돌려놓은 자리에 있음
+// 내 투석기는 항상 원점, 상대 투석기는 (0, MIRROR_Z), 상대 성은 C.cz, 우리 성은 MIRROR_Z - C.cz
+const MIRROR_Z = -26;
+const castles = [];
+
+// 성 하나를 블록으로 쌓음. 좌표는 늘 '상대 성' 기준으로 쓰고, mirror면 우리 성 자리로 돌려놓음
+function buildCastle(mirror){
+  const cs = {mirror, cells: [], roofs: [], visible: true, alive: 0, cz: mirror ? MIRROR_Z - C.cz : C.cz};
+  const MK = MIRROR_Z / CELL;
+  const PX = x => mirror ? -x : x, PZ = z => mirror ? MIRROR_Z - z : z;
+  function putCell(i, j, k, base){
+    const wi = mirror ? -i - 1 : i, wk = mirror ? MK - k - 1 : k;
+    const key = keyOf(wi, j, wk), old = cells.get(key);
+    if (old){ if (base !== 'stone') old.base = base; return old; }
+    const c = {i: wi, j, k: wk, li: i, lk: k, base, alive: true, idx: -1, shade: rand(0.86, 1.08), castle: cs};
+    cells.set(key, c); cs.cells.push(c); return c;
   }
-  const rf = addRoof(x, ht, z, top, {type: 'cyl', x, z, r: r * 1.2, y0: ht, h: ht + r * 0.9});
-  cone(r * 1.3, r * 1.5, M.roof, rf.g, 0, r * 0.75, 0);
-  flag(0, r * 1.4, 0, fc, rf.g);
-}
-{
+  // 상자 영역을 블록으로 채움. baseFn이 null을 돌려주면 그 칸은 비움
+  function fillBox(x0, x1, y0, y1, z0, z1, baseFn){
+    const [i0, i1] = span(x0, x1), [j0, j1] = span(y0, y1), [k0, k1] = span(z0, z1);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++){
+      const b = typeof baseFn === 'function' ? baseFn(ctr(i), ctr(j), ctr(k)) : (baseFn || 'stone');
+      if (b) putCell(i, j, k, b);
+    }
+  }
+  function wallSeg(x, z, w, d, baseFn){
+    fillBox(x - w / 2, x + w / 2, 0, C.wallH, z - d / 2, z + d / 2, baseFn || 'stone');
+    const alongX = w > d;
+    fillBox(x - w / 2, x + w / 2, C.wallH, C.wallH + 1, z - d / 2, z + d / 2,
+      (px, py, pz) => ((Math.floor(alongX ? px : pz) % 2) + 2) % 2 === 0 ? 'stoneD' : null);
+  }
+  // 지붕: 받치는 블록이 많이 부서지면 떨어짐
+  function addRoof(x, baseY, z, support, col){
+    const g = new THREE.Group(); scene.add(g);
+    const r = {g, x: PX(x), z: PZ(z), baseY, rotY: mirror ? Math.PI : 0, support, col, falling: false, gone: false, vy: 0, spin: 0};
+    g.position.set(r.x, baseY, r.z); g.rotation.y = r.rotY;
+    colliders.push(col); roofs.push(r); cs.roofs.push(r); return r;
+  }
+  function tower(x, z, r, ht, fc){
+    const [i0, i1] = span(x - r, x + r), [k0, k1] = span(z - r, z + r), [, j1] = span(0, ht);
+    const top = [];
+    for (let i = i0; i <= i1; i++) for (let k = k0; k <= k1; k++){
+      const d = Math.hypot(ctr(i) - x, ctr(k) - z);
+      if (d > r || d < r - 1.1) continue;               // 속이 빈 원통
+      for (let j = 0; j <= j1; j++){ const c = putCell(i, j, k, 'stone'); if (j === j1) top.push(c); }
+    }
+    const rf = addRoof(x, ht, z, top, {type: 'cyl', x: PX(x), z: PZ(z), r: r * 1.2, y0: ht, h: ht + r * 0.9});
+    cone(r * 1.3, r * 1.5, M.roof, rf.g, 0, r * 0.75, 0);
+    flag(0, r * 1.4, 0, fc, rf.g);
+  }
+
   const h = C.half, cz = C.cz, T = C.wallT;
   // 앞쪽 성벽에는 철띠를 두른 나무 성문
   wallSeg(0, cz + h, 2 * h + T, T, (px, py) => {
@@ -298,15 +357,18 @@ function tower(x, z, r, ht, fc){
     }
     return 'stone';
   });
-  const [, kj] = span(0, 9), top = [];
-  cells.forEach(c => {
-    if (c.j === kj && Math.abs(ctr(c.i)) < 5 && Math.abs(ctr(c.k) - kz) < 3.5 &&
-        (Math.abs(ctr(c.i)) > 4.4 || Math.abs(ctr(c.k) - kz) > 2.9)) top.push(c);
-  });
-  const rf = addRoof(0, 9, kz, top, {type: 'box', min: new THREE.Vector3(-3.5, 9, kz - 2.5), max: new THREE.Vector3(3.5, 12, kz + 2.5)});
+  const [, kj] = span(0, 9);
+  const top = cs.cells.filter(c => c.j === kj && Math.abs(ctr(c.li)) < 5 && Math.abs(ctr(c.lk) - kz) < 3.5 &&
+    (Math.abs(ctr(c.li)) > 4.4 || Math.abs(ctr(c.lk) - kz) > 2.9));
+  const zA = PZ(kz - 2.5), zB = PZ(kz + 2.5);
+  const rf = addRoof(0, 9, kz, top, {type: 'box', min: new THREE.Vector3(-3.5, 9, Math.min(zA, zB)), max: new THREE.Vector3(3.5, 12, Math.max(zA, zB))});
   const roof = cone(7.6, 5, M.roof, rf.g, 0, 2.5, 0, 4); roof.rotation.y = Math.PI / 4; roof.scale.z = 0.72;
   flag(0, 5, 0, 0x7c3aed, rf.g);
+  castles.push(cs);
+  return cs;
 }
+const foeCastle = buildCastle(false);   // 앞에 보이는 성 (혼자 하기의 성 = 대전 상대의 성)
+const myCastle = buildCastle(true);     // 대전 때만 보이는 우리 성 (내 뒤쪽)
 
 // 모든 블록을 InstancedMesh 하나로 그림
 const cellArr = [...cells.values()];
@@ -316,21 +378,33 @@ blocks.castShadow = true; blocks.receiveShadow = true; blocks.frustumCulled = fa
 scene.add(blocks);
 const _m4 = new THREE.Matrix4(), _col = new THREE.Color(), HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
 cellArr.forEach((c, n) => { c.idx = n; _col.setHex(BLOCK[c.base]).multiplyScalar(c.shade); blocks.setColorAt(n, _col); });
-function restoreCastle(){
-  for (const c of cellArr){ c.alive = true; blocks.setMatrixAt(c.idx, _m4.makeTranslation(ctr(c.i), ctr(c.j), ctr(c.k))); }
+
+function setCellAlive(c, on){
+  if (c.alive === on) return;
+  c.alive = on; c.castle.alive += on ? 1 : -1;
+  blocks.setMatrixAt(c.idx, on ? _m4.makeTranslation(ctr(c.i), ctr(c.j), ctr(c.k)) : HIDE);
   blocks.instanceMatrix.needsUpdate = true;
-  for (const r of roofs){
+}
+// 성을 처음 상태로 되돌리거나(show=true) 감춤(show=false)
+function resetCastle(cs, show){
+  for (const c of cs.cells){ c.alive = !show; setCellAlive(c, show); }
+  cs.alive = show ? cs.cells.length : 0;
+  cs.visible = show;
+  for (const r of cs.roofs){
     Object.assign(r, {falling: false, gone: false, vy: 0});
-    r.g.position.set(r.x, r.baseY, r.z); r.g.rotation.set(0, 0, 0); r.g.visible = true;
-    if (!colliders.includes(r.col)) colliders.push(r.col);
+    r.g.position.set(r.x, r.baseY, r.z); r.g.rotation.set(0, r.rotY, 0); r.g.visible = show;
+    const i = colliders.indexOf(r.col);
+    if (show && i < 0) colliders.push(r.col);
+    if (!show && i >= 0) colliders.splice(i, 1);
   }
 }
+const damageOf = cs => cs.cells.length - cs.alive;    // 부서진 블록 수
 function removeCell(c, out){
   if (!c.alive) return;
-  c.alive = false; blocks.setMatrixAt(c.idx, HIDE); out.push(c);
-  blocks.instanceMatrix.needsUpdate = true;
+  setCellAlive(c, false); out.push(c);
 }
-restoreCastle();
+resetCastle(foeCastle, true);
+resetCastle(myCastle, false);
 
 // ================= 목표물 =================
 const TYPES = [
@@ -378,24 +452,27 @@ function pickType(){
   for (const t of TYPES){ if ((r -= t.w) < 0) return t; }
   return TYPES[0];
 }
-function spawnTarget(){
-  const type = pickType();
-  let x, z, ok = false;
+// o: {type, x, z, side: 'foe'(내가 맞힐 것) | 'me'(상대가 맞힐 것), scale, life}
+function spawnTarget(o = {}){
+  const type = o.type || pickType(), sc = o.scale || 1;
+  let x = o.x, z = o.z, ok = x != null;
   for (let k = 0; k < 60 && !ok; k++){
     x = rand(-12.5, 12.5); z = rand(-73, -48);
     ok = !(Math.abs(x) < 6.6 && z < -65.5) && targets.every(t => t.dying || Math.hypot(t.x - x, t.z - z) > 5);
   }
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rand(-0.4, 0.4);
   type.make(g); g.scale.setScalar(0.001); scene.add(g);
+  const r = type.r * sc, h = type.h * sc;
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 40, 16, 1, true),
     new THREE.MeshBasicMaterial({color: type.beam, transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide}));
   beam.position.set(x, 20, z); scene.add(beam);
   const marker = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.1, 12), new THREE.MeshBasicMaterial({color: type.beam}));
   marker.rotation.x = Math.PI; scene.add(marker);
-  const ring = new THREE.Mesh(new THREE.RingGeometry(type.r + 0.2, type.r + 0.5, 32),
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r + 0.2, r + 0.5, 32),
     new THREE.MeshBasicMaterial({color: type.beam, transparent: true, opacity: 0.7, side: THREE.DoubleSide}));
   ring.rotation.x = -Math.PI / 2; ring.position.set(x, 0.04, z); scene.add(ring);
-  targets.push({type, group: g, beam, marker, ring, x, z, r: type.r, h: type.h, age: 0, life: rand(28, 38), dying: 0});
+  const t = {type, group: g, beam, marker, ring, x, z, r, h, scale: sc, side: o.side || 'foe', age: 0, life: o.life || rand(28, 38), dying: 0};
+  targets.push(t); return t;
 }
 function removeTarget(t){
   [t.group, t.beam, t.marker, t.ring].forEach(o => scene.remove(o));
@@ -404,39 +481,47 @@ function removeTarget(t){
 const easeOutBack = x => 1 + 2.7 * Math.pow(x - 1, 3) + 1.7 * Math.pow(x - 1, 2);
 
 // ================= 투석기 =================
-const cat = new THREE.Group(); scene.add(cat);
-box(0.36, 0.36, 4.4, M.wood, cat, -1.1, 0.75, 0); box(0.36, 0.36, 4.4, M.wood, cat, 1.1, 0.75, 0);
-for (const z of [-2, 0.2, 2]) box(2.56, 0.3, 0.3, M.woodD, cat, 0, 0.75, z);
-for (const sx of [-1, 1]) for (const sz of [-1.5, 1.5]){
-  const w = cyl(0.62, 0.62, 0.26, M.woodD, cat, sx * 1.42, 0.62, sz, 20); w.rotation.z = Math.PI / 2;
-  const hb = cyl(0.18, 0.18, 0.32, M.iron, cat, sx * 1.42, 0.62, sz, 10); hb.rotation.z = Math.PI / 2;
+function makeCatapult(trim){
+  const cat = new THREE.Group(); scene.add(cat);
+  box(0.36, 0.36, 4.4, M.wood, cat, -1.1, 0.75, 0); box(0.36, 0.36, 4.4, M.wood, cat, 1.1, 0.75, 0);
+  for (const z of [-2, 0.2, 2]) box(2.56, 0.3, 0.3, M.woodD, cat, 0, 0.75, z);
+  for (const sx of [-1, 1]) for (const sz of [-1.5, 1.5]){
+    const w = cyl(0.62, 0.62, 0.26, M.woodD, cat, sx * 1.42, 0.62, sz, 20); w.rotation.z = Math.PI / 2;
+    const hb = cyl(0.18, 0.18, 0.32, M.iron, cat, sx * 1.42, 0.62, sz, 10); hb.rotation.z = Math.PI / 2;
+  }
+  for (const sx of [-1, 1]){
+    box(0.3, 2.7, 0.3, M.wood, cat, sx * 1.0, 2.1, -0.7);
+    const br = box(0.2, 2.76, 0.2, M.wood, cat, sx * 1.0, 1.9, 0.25); br.rotation.x = -0.76;
+  }
+  box(2.3, 0.32, 0.32, M.woodD, cat, 0, 3.3, -0.7);
+  box(0.7, 0.4, 0.42, mat(trim), cat, 0, 3.3, -0.5);
+  { const t = cyl(0.36, 0.36, 2.0, mat(0x6b5b45), cat, 0, 1.0, 0.2, 14); t.rotation.z = Math.PI / 2; }
+  const pivot = new THREE.Group(); pivot.position.set(0, 1.0, 0.2); cat.add(pivot);
+  box(0.26, 0.26, ARM_L, M.wood, pivot, 0, 0, ARM_L / 2);
+  const bucket = new THREE.Group(); bucket.position.set(0, 0, ARM_L); pivot.add(bucket);
+  add(new THREE.Mesh(new THREE.SphereGeometry(0.6, 18, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+    mat(0x6e4524, {side: THREE.DoubleSide})), bucket, 0, 0.55, 0);
+  return {cat, pivot, bucket};
 }
-for (const sx of [-1, 1]){
-  box(0.3, 2.7, 0.3, M.wood, cat, sx * 1.0, 2.1, -0.7);
-  const br = box(0.2, 2.76, 0.2, M.wood, cat, sx * 1.0, 1.9, 0.25); br.rotation.x = -0.76;
-}
-box(2.3, 0.32, 0.32, M.woodD, cat, 0, 3.3, -0.7);
-box(0.7, 0.4, 0.42, mat(0x7a2e2e), cat, 0, 3.3, -0.5);
-{ const t = cyl(0.36, 0.36, 2.0, mat(0x6b5b45), cat, 0, 1.0, 0.2, 14); t.rotation.z = Math.PI / 2; }
-const pivot = new THREE.Group(); pivot.position.set(0, 1.0, 0.2); cat.add(pivot);
-box(0.26, 0.26, ARM_L, M.wood, pivot, 0, 0, ARM_L / 2);
-const bucket = new THREE.Group(); bucket.position.set(0, 0, ARM_L); pivot.add(bucket);
-add(new THREE.Mesh(new THREE.SphereGeometry(0.6, 18, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
-  mat(0x6e4524, {side: THREE.DoubleSide})), bucket, 0, 0.55, 0);
+const ME = makeCatapult(0x7a2e2e), FOE = makeCatapult(0x1d4ed8);
+const cat = ME.cat, pivot = ME.pivot, bucket = ME.bucket;
+FOE.cat.position.set(0, 0, MIRROR_Z); FOE.cat.rotation.y = Math.PI; FOE.cat.visible = false;
 
 const stoneGeo = new THREE.IcosahedronGeometry(STONE_R, 1);
 const stoneMat = new THREE.MeshStandardMaterial({color: 0x8d8b86, roughness: 0.95, flatShading: true});
 let stone = null;
-function newStone(){
+function newStone(b = bucket){
   const s = new THREE.Mesh(stoneGeo, stoneMat); s.castShadow = true;
-  s.position.set(0, 0.62, 0); bucket.add(s); return s;
+  s.position.set(0, 0.62, 0); b.add(s); return s;
 }
+const foeStone = newStone(FOE.bucket);
 function setArm(a){ pivot.rotation.x = -a * DEG; }
-function launchPoint(){
-  const a = ARM_FIRE * DEG, s = Math.sin(a), c = Math.cos(a);
-  const p = new THREE.Vector3(0, 1.0 + ARM_L * s + 0.62 * c, 0.2 + ARM_L * c - 0.62 * s);
-  cat.updateMatrixWorld(); return cat.localToWorld(p);
+function launchPointOf(c){
+  const a = ARM_FIRE * DEG, s = Math.sin(a), co = Math.cos(a);
+  const p = new THREE.Vector3(0, 1.0 + ARM_L * s + 0.62 * co, 0.2 + ARM_L * co - 0.62 * s);
+  c.updateMatrixWorld(); return c.localToWorld(p);
 }
+const launchPoint = () => launchPointOf(cat);
 
 // 조준 미리보기 점
 const dots = [];
@@ -454,12 +539,19 @@ let best = 0;
 try { best = +localStorage.getItem('catapultBest') || 0; } catch (e) {}
 
 const speedOf = p => V_MIN + (V_MAX - V_MIN) * p;
-function aimDir(){
-  const e = aim.elev * DEG, y = aim.yaw * DEG;
+function dirOf(elev, yaw){
+  const e = elev * DEG, y = yaw * DEG;
   return new THREE.Vector3(Math.cos(e) * Math.sin(y), Math.sin(e), -Math.cos(e) * Math.cos(y));
 }
+const aimDir = () => dirOf(aim.elev, aim.yaw);
 function fwd(){ const y = aim.yaw * DEG; return new THREE.Vector3(Math.sin(y), 0, -Math.cos(y)); }
-const canAim = () => state === 'ready' || state === 'pulling' || state === 'reloading';
+
+// ================= 대전 상태 =================
+let mode = 'solo';                         // 'solo' 혼자 하기 | 'duel' 1:1 대전
+const net = {peer: null, conn: null, host: false, myTurn: false, over: false, foeStones: TOTAL_STONES,
+  crowns: null, pending: null, watchT: 0, aimT: 0, lastAim: '', overTimer: 0, lastSeen: 0,
+  foe: {elev: 45, yaw: 0, power: 0, wind: 0, phase: 'idle', t: 0}};
+const canAim = () => (state === 'ready' || state === 'pulling' || state === 'reloading') && (mode !== 'duel' || net.myTurn);
 
 // ================= 효과음 =================
 let actx = null;
@@ -538,17 +630,38 @@ function updateParts(dt){
 function fire(){
   state = 'firing'; fireT = 0; scout = false; $('bScout').classList.remove('on');
   $('hint').style.opacity = 0;
+  if (mode === 'duel') send({t: 'fire', e: aim.elev, y: aim.yaw, p: aim.power, w: wind});
+}
+// foe: 상대가 쏜 돌인지, w: 그 돌에 부는 바람(지금 화면 기준)
+function makeShot(p0, vel, v0, elev, yaw, foe, w, mesh){
+  return {pos: p0.clone(), vel, v0, t: 0, maxH: p0.y, start: p0.clone(), dir: new THREE.Vector3(vel.x, 0, vel.z).normalize(),
+          impact: null, impactT: 0, stopped: false, hit: false, elev, yaw, foe, wind: w, mesh, broken: 0, crown: false};
 }
 function launch(){
   const p0 = launchPoint();
   bucket.remove(stone); scene.add(stone); stone.position.copy(p0);
   const v = speedOf(aim.power);
-  shot = {pos: p0.clone(), vel: aimDir().multiplyScalar(v), v0: v, t: 0, maxH: p0.y, start: p0.clone(),
-          impact: null, impactT: 0, stopped: false, hit: false, elev: aim.elev, yaw: aim.yaw};
+  shot = makeShot(p0, aimDir().multiplyScalar(v), v, aim.elev, aim.yaw, false, wind, stone);
+  shotAcc = 0;
   stones--; shots++;
   state = 'flying';
   sfx.launch();
 }
+// 상대 돌: 상대 화면의 발사 조건을 180° 돌려서 내 화면에서 똑같이 날림
+function foeLaunch(){
+  const F = net.foe;
+  FOE.cat.rotation.y = Math.PI - F.yaw * DEG;
+  const p0 = launchPointOf(FOE.cat);
+  FOE.bucket.remove(foeStone); scene.add(foeStone); foeStone.position.copy(p0);
+  const v = speedOf(F.power), d = dirOf(F.elev, F.yaw);
+  d.x = -d.x; d.z = -d.z;
+  shot = makeShot(p0, d.multiplyScalar(v), v, F.elev, F.yaw, true, -F.wind, foeStone);
+  shotAcc = 0;
+  state = 'watching'; net.watchT = 0;
+  sfx.launch();
+}
+let shotAcc = 0;
+const STEP = 1 / 240;                      // 두 태블릿이 같은 결과를 내도록 고정 간격으로 계산
 
 function collide(c, s){
   const p = s.pos, v = s.vel;
@@ -667,7 +780,7 @@ function updateRoofs(dt){
 // 돌이 블록에 닿았을 때: 빠르면 부수며 뚫고, 느리면 튕김
 function hitBlocks(s){
   const p = s.pos;
-  if (p.y > 17 || Math.abs(p.x) > C.half + 4 || Math.abs(p.z - C.cz) > C.half + 4) return false;
+  if (p.y > 17 || Math.abs(p.x) > C.half + 4 || !castles.some(cs => cs.visible && Math.abs(p.z - cs.cz) <= C.half + 4)) return false;
   const touching = touchingCells(p, STONE_R);
   if (!touching.length) return false;
   const speed = s.vel.length();
@@ -677,6 +790,7 @@ function hitBlocks(s){
     touching.forEach(t => removeCell(t.c, removed));       // 돌이 끼지 않도록
     s.vel.multiplyScalar(clamp(1 - removed.length * 0.035, 0.4, 0.97));   // 많이 부술수록 느려짐
     const fallen = collapse(removed);
+    s.broken += removed.length + fallen.length;
     blockDebris(removed, dir, speed, 2);
     blockDebris(fallen, null, 0, 1);
     if (removed.length >= 3 && parts.length < 300) burst(p, 0, 2, 3, true);
@@ -704,14 +818,14 @@ function stepShot(dt){
   const s = shot;
   if (!s || s.stopped) return;
   s.t += dt;
-  s.vel.y -= G * dt; s.vel.x += wind * dt;
+  s.vel.y -= G * dt; s.vel.x += s.wind * dt;
   s.pos.addScaledVector(s.vel, dt);
   s.maxH = Math.max(s.maxH, s.pos.y);
-  stone.position.copy(s.pos);
-  stone.rotation.x -= dt * 6; stone.rotation.z += dt * 2;
+  s.mesh.position.copy(s.pos);
+  s.mesh.rotation.x -= dt * 6; s.mesh.rotation.z += dt * 2;
 
   for (const t of targets){
-    if (t.dying) continue;
+    if (t.dying || t.side !== (s.foe ? 'me' : 'foe')) continue;
     const d = Math.hypot(s.pos.x - t.x, s.pos.z - t.z);
     if (d < t.r + STONE_R && s.pos.y < t.h + STONE_R){ hitTarget(t); return; }
   }
@@ -727,7 +841,7 @@ function stepShot(dt){
     else { s.vel.y = 0; const k = Math.max(0, 1 - 2.5 * dt); s.vel.x *= k; s.vel.z *= k; }
   }
   const hs = Math.hypot(s.vel.x, s.vel.z);
-  if ((s.impact && (hs < 0.4 && s.pos.y <= gy + STONE_R + 0.05 || s.t - s.impactT > 2.5)) || s.t > 14 || Math.abs(s.pos.x) > 200 || s.pos.z < -250){
+  if ((s.impact && (hs < 0.4 && s.pos.y <= gy + STONE_R + 0.05 || s.t - s.impactT > 2.5)) || s.t > 14 || Math.abs(s.pos.x) > 200 || Math.abs(s.pos.z) > 250){
     endShot();
   }
 }
@@ -736,6 +850,17 @@ function hitTarget(t){
   const s = shot;
   s.hit = true; s.stopped = true;
   if (!s.impact){ s.impact = s.pos.clone(); s.impactT = s.t; }
+  if (mode === 'duel'){
+    s.crown = true; t.dying = 0.01;
+    const c = new THREE.Vector3(t.x, t.h * 0.5, t.z);
+    burst(c, 0xf2c230, 30, 12); burst(c, 0xdc2626, 10, 9); burst(c, 0, 8, 4, true);
+    scene.remove(s.mesh);
+    sfx.hit();
+    if (s.foe) showMsg('😱 우리 왕관이 맞았어요!', '', '#fca5a5');
+    else { showMsg('👑 왕관 명중!', '상대 성의 왕관을 맞혔어요', '#fde047'); showShotInfo(); }
+    state = s.foe ? 'watchAfter' : 'after'; afterT = 0;
+    return;
+  }
   combo++; hits++;
   const mult = Math.min(combo, 3);
   const pts = t.type.pts * mult;
@@ -757,12 +882,21 @@ function hitTarget(t){
 function endShot(){
   const s = shot; if (!s || s.stopped) return;
   s.stopped = true;
+  if (s.foe){
+    // 상대가 쏜 돌: 우리 성 피해만 알려 줌
+    if (s.broken) showMsg(`🧱 우리 성이 ${s.broken}칸 부서졌어요`, '', '#fca5a5');
+    else showMsg('휴~ 상대 돌이 빗나갔어요', '', '#ffffff');
+    sfx.miss();
+    state = 'watchAfter'; afterT = 0;
+    return;
+  }
   combo = 0;
   const land = s.impact || s.pos;
   landMarks.push(land.clone()); if (landMarks.length > 6) landMarks.shift();
   // 가장 가까운 목표 기준 안내
   let near = null, nd = 1e9;
-  for (const t of targets){ if (t.dying) continue; const d = Math.hypot(land.x - t.x, land.z - t.z); if (d < nd){ nd = d; near = t; } }
+  for (const t of targets){ if (t.dying || t.side !== 'foe') continue; const d = Math.hypot(land.x - t.x, land.z - t.z); if (d < nd){ nd = d; near = t; } }
+  let hint = '';
   if (near){
     const toT = new THREE.Vector3(near.x - s.start.x, 0, near.z - s.start.z).normalize();
     const diff = new THREE.Vector3(land.x - near.x, 0, land.z - near.z);
@@ -770,12 +904,14 @@ function endShot(){
     const side = diff.x * (-toT.z) + diff.z * toT.x;          // +: 오른쪽
     const a = `${Math.abs(along).toFixed(1)} m ${along > 0 ? '멀리' : '짧게'}`;
     const b = Math.abs(side) > 0.5 ? `, ${Math.abs(side).toFixed(1)} m ${side > 0 ? '오른쪽' : '왼쪽'}` : '';
-    showMsg('빗나감!', `${near.type.name}보다 ${a}${b}`, '#ffffff');
-  } else showMsg('빗나감!', '', '#fff');
+    hint = `${near.type.name}보다 ${a}${b}`;
+  }
+  if (mode === 'duel' && s.broken) showMsg(`💥 상대 성 ${s.broken}칸 파괴!`, hint, '#fde047');
+  else showMsg('빗나감!', hint, '#fff');
   sfx.miss();
   showShotInfo();
   state = 'after'; afterT = 0;
-  if (hits >= 1) wind = Math.round(rand(-1.6, 1.6) * 10) / 10;
+  if (mode === 'solo' && hits >= 1) wind = Math.round(rand(-1.6, 1.6) * 10) / 10;
 }
 
 function showShotInfo(){
@@ -797,6 +933,12 @@ function reload(){
   state = 'reloading'; reloadT = 0;
   if (stone) scene.remove(stone);
   shot = null;
+}
+// 장전 애니메이션을 건너뛰고 바로 돌을 얹음
+function finishReload(){
+  if (state !== 'reloading') return;
+  armA = ARM_REST; stone = newStone();
+  state = 'waiting';
 }
 
 // ================= 입력: 당기기 =================
@@ -920,28 +1062,270 @@ $('bInvP').addEventListener('click', () => { sensor.invP = !sensor.invP; syncSen
 $('bInvR').addEventListener('click', () => { sensor.invR = !sensor.invR; syncSensorUI(); });
 
 // ================= 게임 진행 =================
-function newGame(){
+const HINT_AIM = '🖐 화면을 누른 채 아래로 당겼다가 놓으세요';
+function setModeUI(){
+  const duel = mode === 'duel';
+  $('top').style.display = duel ? 'none' : '';
+  $('duelTop').style.display = duel ? '' : 'none';
+  FOE.cat.visible = duel;
+}
+// 두 모드 공통: 내 투석기에 새 돌을 얹고 화면 정리
+function resetField(){
   targets.slice().forEach(removeTarget);
-  score = 0; stones = TOTAL_STONES; combo = 0; hits = 0; shots = 0; wind = 0; landMarks = [];
-  restoreCastle();
-  for (let i = 0; i < 3; i++) spawnTarget();
-  if (stone) scene.remove(stone);
   if (stone && stone.parent) stone.parent.remove(stone);
-  stone = newStone(); armA = ARM_REST; shot = null;
+  stone = newStone(); armA = ARM_REST; shot = null; shotAcc = 0; aim.power = 0;
+  landMarks = []; scout = false; $('bScout').classList.remove('on');
+  for (let i = parts.length - 1; i >= 0; i--){ scene.remove(parts[i].m); parts.splice(i, 1); }
+  $('intro').style.display = 'none'; $('over').style.display = 'none'; $('lobby').style.display = 'none';
+  $('shotInfo').style.display = 'none'; $('hint').textContent = HINT_AIM; $('hint').style.opacity = 1;
+  $('again').style.display = '';
+}
+function newGame(){
+  mode = 'solo'; setModeUI();
+  score = 0; stones = TOTAL_STONES; combo = 0; hits = 0; shots = 0; wind = 0;
+  resetCastle(foeCastle, true); resetCastle(myCastle, false);
+  resetField();
+  for (let i = 0; i < 3; i++) spawnTarget();
   state = 'ready';
-  $('intro').style.display = 'none'; $('over').style.display = 'none';
-  $('shotInfo').style.display = 'none'; $('hint').style.opacity = 1;
 }
 function gameOver(){
   state = 'over';
   if (score > best){ best = score; try { localStorage.setItem('catapultBest', best); } catch (e) {} }
+  $('oTitle').textContent = '⚔️ 공성전 종료!';
+  $('again').textContent = '다시 하기';
   $('oScore').textContent = score + '점';
   $('oDetail').innerHTML = `돌 ${shots}개 중 <b>${hits}번 명중</b> (명중률 ${shots ? Math.round(hits / shots * 100) : 0}%)<br>최고 점수: ${best}점`;
   $('over').style.display = 'flex';
 }
+function toMenu(){
+  closeNet();
+  mode = 'solo'; setModeUI();
+  state = 'intro';
+  $('over').style.display = 'none'; $('lobby').style.display = 'none'; $('intro').style.display = 'flex';
+}
 $('startSensor').addEventListener('click', async () => { audio(); await enableSensor(); newGame(); });
 $('startTouch').addEventListener('click', () => { audio(); newGame(); });
-$('again').addEventListener('click', newGame);
+$('again').addEventListener('click', () => {
+  if (mode !== 'duel') return newGame();
+  if (!net.conn || !net.conn.open){ $('oDetail').textContent = '상대와 연결이 끊어졌어요.'; return; }
+  if (net.host) hostStart();
+  else { send({t: 'again'}); $('oDetail').innerHTML += '<br>상대에게 다시 하자고 했어요…'; }
+});
+$('toMenu').addEventListener('click', toMenu);
+
+// ================= 1:1 대전 =================
+const NET_PREFIX = 'catapult-siege-gs012-';      // 공용 PeerJS 서버에서 다른 앱과 겹치지 않게
+const newWind = () => Math.round(rand(-1.6, 1.6) * 10) / 10;
+function send(m){ try { if (net.conn && net.conn.open) net.conn.send(m); } catch (e) {} }
+setInterval(() => send({t: 'ping'}), 2000);         // 연결이 살아 있다는 신호
+function setLobby(t){ $('lobbyTxt').textContent = t; }
+function closeNet(){
+  const {conn, peer} = net;
+  net.conn = net.peer = null;
+  try { if (conn){ conn.removeAllListeners(); conn.close(); } } catch (e) {}
+  try { if (peer){ peer.removeAllListeners(); peer.destroy(); } } catch (e) {}
+}
+function hostRoom(){
+  closeNet();
+  if (typeof Peer === 'undefined'){ setLobby('연결 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.'); return; }
+  const code = String(Math.floor(1000 + Math.random() * 9000));
+  const peer = new Peer(NET_PREFIX + code);
+  net.peer = peer; net.host = true;
+  $('roomBox').style.display = 'none';
+  setLobby('방을 만드는 중…');
+  peer.on('open', () => {
+    $('roomCode').textContent = code; $('roomBox').style.display = '';
+    setLobby('상대 태블릿에서 이 번호로 참가하세요. 기다리는 중…');
+  });
+  peer.on('connection', conn => {
+    if (net.conn && net.conn.open){ conn.on('open', () => conn.close()); return; }
+    setupConn(conn);
+  });
+  peer.on('error', e => {
+    if (e.type === 'unavailable-id') hostRoom();        // 번호가 겹치면 다시 뽑기
+    else setLobby('연결 오류(' + e.type + '). 잠시 후 다시 시도해 주세요.');
+  });
+}
+function joinRoom(code){
+  closeNet();
+  if (typeof Peer === 'undefined'){ setLobby('연결 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.'); return; }
+  const peer = new Peer();
+  net.peer = peer; net.host = false;
+  setLobby(code + '번 방에 접속하는 중…');
+  peer.on('open', () => setupConn(peer.connect(NET_PREFIX + code, {reliable: true})));
+  peer.on('error', e => setLobby(e.type === 'peer-unavailable'
+    ? code + '번 방이 없어요. 번호를 확인해 주세요.' : '연결 오류(' + e.type + '). 잠시 후 다시 시도해 주세요.'));
+}
+function setupConn(conn){
+  net.conn = conn;
+  conn.on('open', () => { net.lastSeen = performance.now(); setLobby('연결됐어요!'); if (net.host) hostStart(); });
+  conn.on('data', onNetMsg);
+  conn.on('close', onDisconnect);
+  conn.on('error', onDisconnect);
+}
+function onDisconnect(){
+  if (mode !== 'duel'){ if ($('lobby').style.display !== 'none') setLobby('연결이 끊어졌어요. 다시 시도해 주세요.'); return; }
+  if (net.over && $('over').style.display !== 'none'){ $('oDetail').innerHTML += '<br>상대가 나갔어요.'; $('again').style.display = 'none'; return; }
+  net.over = true; state = 'over'; clearTimeout(net.overTimer);
+  $('oTitle').textContent = '🔌 연결이 끊어졌어요';
+  $('oScore').textContent = '';
+  $('oDetail').textContent = '상대 태블릿과 연결이 끊어졌어요. 처음 화면에서 다시 방을 만들어 주세요.';
+  $('again').style.display = 'none';
+  $('over').style.display = 'flex';
+}
+
+function onNetMsg(m){
+  if (!m || !m.t) return;
+  net.lastSeen = performance.now();
+  if (m.t === 'ping') return;
+  if (m.t === 'start') startDuelRound(m);
+  else if (m.t === 'again'){ if (net.host) hostStart(); }
+  else if (mode !== 'duel') return;
+  else if (m.t === 'aim'){ if (!net.myTurn && net.foe.phase === 'idle') Object.assign(net.foe, {elev: m.e, yaw: m.y, power: m.p}); }
+  else if (m.t === 'fire'){
+    finishReload();
+    Object.assign(net.foe, {elev: m.e, yaw: m.y, power: m.p, wind: m.w, phase: 'firing', t: 0});
+    wind = -m.w;                               // 상대 쪽 바람은 내 화면에서는 반대 방향
+    state = 'watching'; net.watchT = 0;
+  }
+  else if (m.t === 'result') net.pending = m;
+}
+
+// 방장이 왕관 위치를 정해 두 태블릿에 똑같이 알려 줌 (좌표는 각자 '상대 성' 기준)
+function hostStart(){
+  const spot = () => [Math.round(rand(-10, 10) * 2) / 2, Math.round(rand(-63, -50) * 2) / 2];
+  const m = {t: 'start', crowns: {host: spot(), guest: spot()}};
+  send(m); startDuelRound(m);
+}
+function startDuelRound(m){
+  clearTimeout(net.overTimer);
+  mode = 'duel'; setModeUI();
+  net.over = false; net.pending = null; net.crowns = m.crowns; net.foeStones = TOTAL_STONES;
+  stones = TOTAL_STONES; shots = 0;
+  resetCastle(foeCastle, true); resetCastle(myCastle, true);
+  resetField();
+  placeCrowns();
+  if (foeStone.parent !== FOE.bucket){ scene.remove(foeStone); FOE.bucket.add(foeStone); }
+  foeStone.position.set(0, 0.62, 0);
+  Object.assign(net.foe, {elev: 45, yaw: 0, power: 0, wind: 0, phase: 'idle', t: 0});
+  net.myTurn = net.host;
+  wind = net.myTurn ? newWind() : 0;
+  state = net.myTurn ? 'ready' : 'waiting';
+  showMsg(net.myTurn ? '🎯 내가 먼저 쏴요!' : '⏳ 상대가 먼저 쏴요', '상대 성의 👑 왕관을 맞히면 승리', '#fde047');
+}
+const CROWN = TYPES.find(t => t.name === '왕관');
+function placeCrowns(){
+  const mine = net.host ? net.crowns.host : net.crowns.guest, theirs = net.host ? net.crowns.guest : net.crowns.host;
+  targets.slice().forEach(removeTarget);
+  spawnTarget({type: CROWN, x: theirs[0], z: theirs[1], side: 'foe', scale: 1.6, life: Infinity});
+  spawnTarget({type: CROWN, x: -mine[0], z: MIRROR_Z - mine[1], side: 'me', scale: 1.6, life: Infinity});
+}
+
+// 내가 쏜 돌이 끝남 → 결과(상대 성의 부서진 블록 목록)를 보내고 차례를 넘김
+function duelShotDone(){
+  const s = shot, dead = [];
+  foeCastle.cells.forEach((c, n) => { if (!c.alive) dead.push(n); });
+  const crown = !!(s && s.crown);
+  send({t: 'result', dead, crown, stones});
+  net.myTurn = false;
+  if (crown) return duelOver('win', '상대 성의 왕관을 맞혔어요!');
+  if (checkDuelEnd()) return;
+  reload();
+  $('hint').textContent = '⏳ 상대가 조준하고 있어요';
+}
+// 상대 결과를 받아 우리 성을 상대 태블릿과 똑같이 맞춤 → 내 차례
+function applyResult(m){
+  const dead = new Set(m.dead);
+  myCastle.cells.forEach((c, n) => setCellAlive(c, !dead.has(n)));
+  checkRoofs();
+  if (shot && shot.foe){ shot.stopped = true; shot = null; }
+  if (foeStone.parent !== FOE.bucket){ scene.remove(foeStone); FOE.bucket.add(foeStone); foeStone.position.set(0, 0.62, 0); }
+  net.foe.phase = 'reload'; net.foe.t = 0; net.foe.power = 0;
+  net.foeStones = m.stones;
+  const crownT = targets.find(t => t.side === 'me');
+  if (m.crown) return duelOver('lose', '상대가 우리 성의 왕관을 맞혔어요.');
+  if (!crownT){                                  // 내 화면에서만 맞은 것처럼 보였으면 왕관을 되돌림
+    const mine = net.host ? net.crowns.host : net.crowns.guest;
+    spawnTarget({type: CROWN, x: -mine[0], z: MIRROR_Z - mine[1], side: 'me', scale: 1.6, life: Infinity});
+  }
+  if (checkDuelEnd()) return;
+  net.myTurn = true; wind = newWind(); aim.power = 0;
+  if (state !== 'reloading') state = 'ready';
+  $('hint').textContent = HINT_AIM;
+  showMsg('🎯 내 차례!', `남은 돌 ${stones}개`, '#fde047');
+}
+function checkDuelEnd(){
+  if (stones > 0 || net.foeStones > 0) return false;
+  const mine = damageOf(foeCastle), theirs = damageOf(myCastle);
+  duelOver(mine > theirs ? 'win' : mine < theirs ? 'lose' : 'draw', '돌을 모두 썼어요. 성을 더 많이 부순 쪽이 이겨요.');
+  return true;
+}
+function duelOver(res, reason){
+  net.over = true; state = 'over';
+  clearTimeout(net.overTimer);
+  net.overTimer = setTimeout(() => {
+    $('oTitle').textContent = res === 'win' ? '🏆 승리!' : res === 'lose' ? '😢 아쉽게 졌어요' : '🤝 무승부';
+    $('oScore').textContent = `${damageOf(foeCastle)} : ${damageOf(myCastle)}`;
+    $('oDetail').innerHTML = `${reason}<br>내가 부순 블록 <b>${damageOf(foeCastle)}칸</b> · 상대가 부순 블록 <b>${damageOf(myCastle)}칸</b>`;
+    $('again').textContent = '다시 대전'; $('again').style.display = '';
+    $('over').style.display = 'flex';
+  }, 1800);
+}
+
+// 상대 투석기 움직임 (조준 → 발사 → 장전)
+function updateFoe(dt){
+  if (mode !== 'duel') return;
+  const F = net.foe;
+  let a;
+  if (F.phase === 'firing'){
+    F.t += dt;
+    const k = clamp(F.t / 0.17, 0, 1);
+    a = lerp(ARM_REST + (ARM_PULL - ARM_REST) * F.power, ARM_FIRE, k * k);
+    if (k >= 1){ F.phase = 'flying'; foeLaunch(); }
+  } else if (F.phase === 'flying') a = ARM_FIRE;
+  else if (F.phase === 'reload'){
+    F.t += dt;
+    const k = clamp(F.t / 0.8, 0, 1);
+    a = lerp(ARM_FIRE, ARM_REST, k * k * (3 - 2 * k));
+    if (k >= 1) F.phase = 'idle';
+  } else a = lerp(ARM_REST, ARM_PULL, F.power);
+  FOE.pivot.rotation.x = -a * DEG;
+  FOE.cat.rotation.y = Math.PI - F.yaw * DEG;
+  // 내 조준 상태를 상대에게 0.1초마다 알려 줌
+  if (net.myTurn && (state === 'ready' || state === 'pulling')){
+    net.aimT -= dt;
+    if (net.aimT <= 0){
+      net.aimT = 0.1;
+      const key = `${aim.elev.toFixed(0)},${aim.yaw.toFixed(0)},${aim.power.toFixed(2)}`;
+      if (key !== net.lastAim){ net.lastAim = key; send({t: 'aim', e: aim.elev, y: aim.yaw, p: aim.power}); }
+    }
+  }
+  // 연결 확인: 10초 동안 상대 소식(2초마다 오는 신호 포함)이 없으면 끊긴 것으로 봄
+  if (!net.over && net.conn && performance.now() - net.lastSeen > 10000) onDisconnect();
+  // 상대 결과는 내 화면의 돌이 다 떨어진 뒤에 반영
+  if (state === 'watching') net.watchT += dt;
+  if (net.pending && (state === 'waiting' || state === 'reloading' || (state === 'watchAfter' && afterT > 1.0) || (state === 'watching' && net.watchT > 10))){
+    const m = net.pending; net.pending = null; applyResult(m);
+  }
+}
+
+// 로비 버튼
+$('startDuel').addEventListener('click', () => {
+  audio();
+  $('intro').style.display = 'none'; $('lobby').style.display = 'flex';
+  $('roomBox').style.display = 'none'; setLobby('');
+});
+$('bBack').addEventListener('click', toMenu);
+async function duelSensor(){ if ($('duelSensor').checked && !sensor.on) await enableSensor(); }
+$('bHost').addEventListener('click', async () => { audio(); await duelSensor(); hostRoom(); });
+$('bJoin').addEventListener('click', async () => {
+  audio();
+  const code = $('joinCode').value.replace(/\D/g, '');
+  if (code.length !== 4){ setLobby('방 번호 4자리를 입력해 주세요.'); return; }
+  $('roomBox').style.display = 'none';
+  await duelSensor(); joinRoom(code);
+});
+$('joinCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('bJoin').click(); });
 
 // ================= 미니맵 =================
 const mapC = $('map'), mctx = mapC.getContext('2d');
@@ -949,22 +1333,31 @@ function drawMap(){
   const dpr = window.devicePixelRatio || 1, W = mapC.clientWidth, H = mapC.clientHeight;
   if (mapC.width !== W * dpr){ mapC.width = W * dpr; mapC.height = H * dpr; }
   mctx.setTransform(dpr, 0, 0, dpr, 0, 0); mctx.clearRect(0, 0, W, H);
-  const x0 = -24, x1 = 24, z0 = 8, z1 = -80;
+  const duel = mode === 'duel';
+  const x0 = -24, x1 = 24, z0 = duel ? 54 : 8, z1 = -80;
   const sc = Math.min((W - 12) / (x1 - x0), (H - 12) / (z0 - z1));
-  const ox = W / 2, oy = 6 + z0 * sc;
-  const P = (x, z) => [ox + x * sc, oy - z * sc + 0];
+  const ox = W / 2;
   const Pz = (x, z) => [ox + x * sc, 6 + (z0 - z) * sc];
-  // 성
-  mctx.strokeStyle = '#d6d0c4'; mctx.lineWidth = Math.max(2, C.wallT * sc);
-  const [ax, ay] = Pz(-C.half, C.cz + C.half), [bx, by] = Pz(C.half, C.cz - C.half);
-  mctx.strokeRect(ax, ay, bx - ax, by - ay);
-  mctx.fillStyle = '#9e978b';
-  const [kx, ky] = Pz(-5, C.cz - C.half + 9), [kx2, ky2] = Pz(5, C.cz - C.half + 2);
-  mctx.fillRect(kx, ky, kx2 - kx, ky2 - ky);
-  mctx.fillStyle = '#b8463c';
-  [[-C.half, C.cz + C.half], [C.half, C.cz + C.half], [-C.half, C.cz - C.half], [C.half, C.cz - C.half]].forEach(([x, z]) => {
-    const [px, py] = Pz(x, z); mctx.beginPath(); mctx.arc(px, py, 2.4 * sc, 0, 7); mctx.fill();
-  });
+  // 성 (대전이면 우리 성은 초록, 상대 성은 빨강 테두리)
+  for (const cs of castles){
+    if (!cs.visible) continue;
+    const s = cs.mirror ? -1 : 1, h = C.half, cz = cs.cz;
+    mctx.strokeStyle = duel ? (cs.mirror ? '#86efac' : '#fca5a5') : '#d6d0c4';
+    mctx.lineWidth = Math.max(2, C.wallT * sc);
+    const [ax, ay] = Pz(-h, cz + h), [bx, by] = Pz(h, cz - h);
+    mctx.strokeRect(ax, ay, bx - ax, by - ay);
+    mctx.fillStyle = '#9e978b';
+    const [kx, ky] = Pz(-5, cz + s * (-h + 9)), [kx2, ky2] = Pz(5, cz + s * (-h + 2));
+    mctx.fillRect(Math.min(kx, kx2), Math.min(ky, ky2), Math.abs(kx2 - kx), Math.abs(ky2 - ky));
+    mctx.fillStyle = '#b8463c';
+    [[-h, cz + h], [h, cz + h], [-h, cz - h], [h, cz - h]].forEach(([x, z]) => {
+      const [px, py] = Pz(x, z); mctx.beginPath(); mctx.arc(px, py, 2.4 * sc, 0, 7); mctx.fill();
+    });
+  }
+  if (duel){
+    const [fx, fy] = Pz(0, MIRROR_Z);
+    mctx.fillStyle = '#60a5fa'; mctx.beginPath(); mctx.arc(fx, fy, 4, 0, 7); mctx.fill();
+  }
   // 착지점
   mctx.strokeStyle = 'rgba(255,255,255,.8)'; mctx.lineWidth = 1.5;
   landMarks.forEach(p => { const [px, py] = Pz(p.x, p.z); mctx.beginPath();
@@ -989,12 +1382,13 @@ function updateCamera(dt){
   let tp, tl, fov = 50, k = 3;
   if (scout && canAim()){
     tp = new THREE.Vector3(0, 50, -16); tl = new THREE.Vector3(0, 0, C.cz - 4); fov = 45;
-  } else if (state === 'flying' && shot){
-    tp = shot.pos.clone().addScaledVector(f, -12).addScaledVector(up, 4.5);
-    tl = shot.pos.clone().addScaledVector(f, 6); k = 5;
-  } else if (state === 'after' && shot){
+  } else if ((state === 'flying' || state === 'watching') && shot){
+    const d = shot.dir;
+    tp = shot.pos.clone().addScaledVector(d, -12).addScaledVector(up, 4.5);
+    tl = shot.pos.clone().addScaledVector(d, 6); k = 5;
+  } else if ((state === 'after' || state === 'watchAfter') && shot){
     const l = shot.impact || shot.pos;
-    tp = l.clone().addScaledVector(f, -16).addScaledVector(up, 9);
+    tp = l.clone().addScaledVector(shot.dir, -16).addScaledVector(up, 9);
     tl = l.clone();
   } else {
     tp = f.clone().multiplyScalar(-14).addScaledVector(up, 8.5);
@@ -1009,7 +1403,7 @@ function updateCamera(dt){
 // ================= 매 프레임 =================
 function updateGame(dt){
   // 투석기 팔
-  if (state === 'ready') armA = lerp(armA, ARM_REST, 1 - Math.exp(-dt * 10));
+  if (state === 'ready' || state === 'waiting' || state === 'watching' || state === 'watchAfter') armA = lerp(armA, ARM_REST, 1 - Math.exp(-dt * 10));
   else if (state === 'pulling') armA = lerp(ARM_REST, ARM_PULL, aim.power);
   else if (state === 'firing'){
     fireT += dt;
@@ -1022,19 +1416,25 @@ function updateGame(dt){
     armA = lerp(ARM_FIRE, ARM_REST, k * k * (3 - 2 * k));
     if (k >= 1){
       stone = newStone(); stone.scale.setScalar(0.01);
-      state = 'ready'; aim.power = 0; $('hint').style.opacity = 1;
+      state = (mode === 'duel' && !net.myTurn) ? 'waiting' : 'ready';
+      aim.power = 0; $('hint').style.opacity = 1;
     }
   }
   setArm(armA);
   if (stone && stone.parent === bucket && stone.scale.x < 1) stone.scale.setScalar(Math.min(1, stone.scale.x + dt * 4));
   cat.rotation.y = -aim.yaw * DEG;
 
-  if (state === 'flying'){ for (let i = 0; i < 4; i++) stepShot(dt / 4); }
-  if (state === 'after'){
-    afterT += dt;
-    if (shot && !shot.stopped) stepShot(dt);
-    if (afterT > 1.8){ if (stones > 0) reload(); else gameOver(); }
+  // 돌은 고정 간격(1/240초)으로 계산
+  if (shot && !shot.stopped && (state === 'flying' || state === 'watching' || state === 'after' || state === 'watchAfter')){
+    shotAcc += dt;
+    for (let n = 0; shotAcc >= STEP && n < 40 && shot && !shot.stopped; n++){ stepShot(STEP); shotAcc -= STEP; }
   }
+  if (state === 'after' || state === 'watchAfter') afterT += dt;
+  if (state === 'after' && afterT > 1.8){
+    if (mode === 'duel') duelShotDone();
+    else if (stones > 0) reload(); else gameOver();
+  }
+  updateFoe(dt);
 
   // 목표물 애니메이션
   const now = performance.now() / 1000;
@@ -1043,13 +1443,13 @@ function updateGame(dt){
     if (t.dying){
       t.dying += dt;
       const s = Math.max(0, 1 - t.dying / 0.25);
-      t.group.scale.setScalar(Math.max(0.001, s));
+      t.group.scale.setScalar(Math.max(0.001, s * t.scale));
       t.beam.material.opacity = 0.25 * s; t.ring.material.opacity = 0.7 * s;
       if (t.dying > 0.3) removeTarget(t);
       continue;
     }
     const s = t.age < 0.5 ? easeOutBack(t.age / 0.5) : 1;
-    t.group.scale.setScalar(Math.max(0.001, s));
+    t.group.scale.setScalar(Math.max(0.001, s * t.scale));
     t.marker.position.set(t.x, t.h + 2.2 + Math.sin(now * 3 + t.x) * 0.35, t.z);
     t.marker.rotation.y += dt * 2;
     t.beam.material.opacity = 0.18 + 0.08 * Math.sin(now * 4 + t.z);
@@ -1088,6 +1488,17 @@ function updateHUD(){
   $('gaugeFill').style.height = (aim.power * 100) + '%';
   $('gaugeTxt').textContent = (state === 'pulling' || state === 'firing') ? speedOf(aim.power).toFixed(1) + ' m/s' : '힘';
   if (sensor.on){ $('sElev').value = aim.elev; $('sYaw').value = aim.yaw; }
+  if (mode === 'duel'){
+    const turn = $('dTurn');
+    turn.textContent = net.over ? '🏁 끝' : net.myTurn ? '🎯 내 차례' : '⏳ 상대 차례';
+    turn.classList.toggle('mine', net.myTurn && !net.over);
+    $('dMe').textContent = `🧱 -${damageOf(myCastle)} · 🪨 ${stones}`;
+    $('dFoe').textContent = `🧱 -${damageOf(foeCastle)} · 🪨 ${net.foeStones}`;
+    $('dWind').textContent = wind === 0 ? '없음' : `${wind > 0 ? '→' : '←'} ${Math.abs(wind).toFixed(1)}`;
+    const h = net.myTurn ? HINT_AIM : '⏳ 상대가 조준하고 있어요';
+    if ($('hint').textContent !== h) $('hint').textContent = h;
+    $('hint').style.opacity = (state === 'ready' || state === 'waiting') ? 1 : 0;
+  }
 }
 
 function resize(){
@@ -1113,7 +1524,8 @@ function frame(){
   requestAnimationFrame(frame);
 }
 frame();
-window.__game = {aim, get state(){ return state; }, fire: p => { if (state === 'ready'){ aim.power = p; fire(); } }, get targets(){ return targets; }, get broken(){ return cellArr.filter(c => !c.alive).length; }, get roofsDown(){ return roofs.filter(r => r.falling).length; }};
+window.__game = {aim, get state(){ return state; }, fire: p => { if (state === 'ready'){ aim.power = p; fire(); } }, get targets(){ return targets; }, get broken(){ return cellArr.filter(c => !c.alive).length; }, get roofsDown(){ return roofs.filter(r => r.falling).length; },
+  get mode(){ return mode; }, get net(){ return net; }, get stones(){ return stones; }, damage: () => [damageOf(myCastle), damageOf(foeCastle)]};
 </script>
 </body>
 </html>

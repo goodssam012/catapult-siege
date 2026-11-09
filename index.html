@@ -220,51 +220,117 @@ for (let i = 0; i < 70;){
   tree(x, z, rand(0.9, 1.6)); i++;
 }
 
-// ================= 성 =================
+// ================= 성 (돌 블록으로 쌓아 부서질 수 있음) =================
 const colliders = [];
 const flags = [];
-function wallSeg(x, z, w, d){
-  box(w, C.wallH, d, M.stone, scene, x, C.wallH / 2, z);
-  colliders.push({type: 'box', min: new THREE.Vector3(x - w / 2, 0, z - d / 2), max: new THREE.Vector3(x + w / 2, C.wallH + 0.9, z + d / 2)});
-  const alongX = w > d, len = alongX ? w : d, n = Math.floor(len / 1.2);
-  for (let i = 0; i < n; i += 2){
-    const t = -len / 2 + 0.6 + i * 1.2;
-    box(alongX ? 1 : w, 0.9, alongX ? d : 1, M.stoneD, scene, alongX ? x + t : x, C.wallH + 0.45, alongX ? z : z + t);
+const roofs = [];
+const CELL = 0.5;                                   // 블록 한 변 길이 (m)
+const BLOCK = {stone: 0xb3ada3, stoneD: 0x958f86, wood: 0x5b3a1c, iron: 0x6b6f76, dark: 0x2b2118};
+const cells = new Map();
+const keyOf = (i, j, k) => ((i + 512) * 1024 + j) * 1024 + (k + 512);
+const ctr = i => (i + 0.5) * CELL;                  // 블록 i의 중심 좌표
+const span = (a, b) => [Math.ceil(a / CELL - 0.5), Math.floor(b / CELL - 0.5)];
+const cellAt = (i, j, k) => { const c = cells.get(keyOf(i, j, k)); return c && c.alive ? c : null; };
+
+function putCell(i, j, k, base){
+  const key = keyOf(i, j, k), old = cells.get(key);
+  if (old){ if (base !== 'stone') old.base = base; return old; }
+  const c = {i, j, k, base, alive: true, idx: -1, shade: rand(0.86, 1.08)};
+  cells.set(key, c); return c;
+}
+// 상자 영역을 블록으로 채움. baseFn이 null을 돌려주면 그 칸은 비움
+function fillBox(x0, x1, y0, y1, z0, z1, baseFn){
+  const [i0, i1] = span(x0, x1), [j0, j1] = span(y0, y1), [k0, k1] = span(z0, z1);
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++){
+    const b = typeof baseFn === 'function' ? baseFn(ctr(i), ctr(j), ctr(k)) : (baseFn || 'stone');
+    if (b) putCell(i, j, k, b);
   }
 }
-function flag(x, y, z, color){
-  cyl(0.06, 0.06, 2.2, M.woodD, scene, x, y + 1.1, z, 6);
+function wallSeg(x, z, w, d, baseFn){
+  fillBox(x - w / 2, x + w / 2, 0, C.wallH, z - d / 2, z + d / 2, baseFn || 'stone');
+  const alongX = w > d;
+  fillBox(x - w / 2, x + w / 2, C.wallH, C.wallH + 1, z - d / 2, z + d / 2,
+    (px, py, pz) => ((Math.floor(alongX ? px : pz) % 2) + 2) % 2 === 0 ? 'stoneD' : null);
+}
+function flag(x, y, z, color, parent = scene){
+  cyl(0.06, 0.06, 2.2, M.woodD, parent, x, y + 1.1, z, 6);
   const geo = new THREE.PlaneGeometry(1.5, 0.9); geo.translate(0.75, 0, 0);
   const f = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color, side: THREE.DoubleSide}));
-  f.position.set(x, y + 1.75, z); scene.add(f); flags.push({mesh: f, ph: Math.random() * 6});
+  f.position.set(x, y + 1.75, z); parent.add(f); flags.push({mesh: f, ph: Math.random() * 6});
+}
+// 지붕: 받치는 블록이 많이 부서지면 떨어짐
+function addRoof(x, baseY, z, support, col){
+  const g = new THREE.Group(); g.position.set(x, baseY, z); scene.add(g);
+  colliders.push(col);
+  const r = {g, x, z, baseY, support, col, falling: false, gone: false, vy: 0, spin: 0};
+  roofs.push(r); return r;
 }
 function tower(x, z, r, ht, fc){
-  cyl(r, r * 1.08, ht, M.stone, scene, x, ht / 2, z);
-  cone(r * 1.3, r * 1.5, M.roof, scene, x, ht + r * 0.75, z);
-  colliders.push({type: 'cyl', x, z, r: r * 1.1, h: ht + r * 0.7});
-  flag(x, ht + r * 1.4, z, fc);
+  const [i0, i1] = span(x - r, x + r), [k0, k1] = span(z - r, z + r), [, j1] = span(0, ht);
+  const top = [];
+  for (let i = i0; i <= i1; i++) for (let k = k0; k <= k1; k++){
+    const d = Math.hypot(ctr(i) - x, ctr(k) - z);
+    if (d > r || d < r - 1.1) continue;               // 속이 빈 원통
+    for (let j = 0; j <= j1; j++){ const c = putCell(i, j, k, 'stone'); if (j === j1) top.push(c); }
+  }
+  const rf = addRoof(x, ht, z, top, {type: 'cyl', x, z, r: r * 1.2, y0: ht, h: ht + r * 0.9});
+  cone(r * 1.3, r * 1.5, M.roof, rf.g, 0, r * 0.75, 0);
+  flag(0, r * 1.4, 0, fc, rf.g);
 }
 {
   const h = C.half, cz = C.cz, T = C.wallT;
-  wallSeg(0, cz + h, 2 * h + T, T); wallSeg(0, cz - h, 2 * h + T, T);
+  // 앞쪽 성벽에는 철띠를 두른 나무 성문
+  wallSeg(0, cz + h, 2 * h + T, T, (px, py) => {
+    if (Math.abs(px) < 2.2 && py < 3.2) return [-1.3, 0, 1.3].some(b => Math.abs(px - b) < 0.25) ? 'iron' : 'wood';
+    return 'stone';
+  });
+  wallSeg(0, cz - h, 2 * h + T, T);
   wallSeg(-h, cz, T, 2 * h); wallSeg(h, cz, T, 2 * h);
   [[-h, cz + h], [h, cz + h], [-h, cz - h], [h, cz - h]].forEach(([x, z], i) => tower(x, z, 2.4, 8, i % 2 ? 0x1d4ed8 : 0xdc2626));
   tower(-4, cz + h, 1.7, 6, 0xfacc15); tower(4, cz + h, 1.7, 6, 0xfacc15);
-  // 성문
-  box(4.4, 3.2, 0.3, M.woodD, scene, 0, 1.6, cz + h + T / 2 + 0.15);
-  for (let i = -1; i <= 1; i++) box(0.12, 3.2, 0.34, M.iron, scene, i * 1.3, 1.6, cz + h + T / 2 + 0.17);
-  // 본성(킵)
-  const kz = cz - h + 5.5;
-  box(10, 9, 7, M.stone, scene, 0, 4.5, kz);
-  colliders.push({type: 'box', min: new THREE.Vector3(-5, 0, kz - 3.5), max: new THREE.Vector3(5, 9, kz + 3.5)});
-  colliders.push({type: 'box', min: new THREE.Vector3(-3.5, 9, kz - 2.5), max: new THREE.Vector3(3.5, 12, kz + 2.5)});
-  const roof = cone(7.6, 5, M.roof, scene, 0, 11.5, kz, 4); roof.rotation.y = Math.PI / 4; roof.scale.z = 0.72;
-  for (let i = -1; i <= 1; i++){
-    box(0.9, 1.4, 0.1, mat(0x2b2118), scene, i * 3, 6.2, kz + 3.52);
-  }
-  box(2, 3, 0.1, M.woodD, scene, 0, 1.5, kz + 3.52);
-  flag(0, 14, kz, 0x7c3aed);
+  // 본성(킵): 두께 1 m의 속이 빈 건물, 앞면에 문과 창문
+  const kz = cz - h + 5.5, TH = 1.0;
+  fillBox(-5, 5, 0, 9, kz - 3.5, kz + 3.5, (px, py, pz) => {
+    if (Math.abs(px) < 5 - TH && Math.abs(pz - kz) < 3.5 - TH && py < 9 - TH) return null;
+    if (pz > kz + 3.5 - TH){
+      if (Math.abs(px) < 1 && py < 3) return 'wood';
+      if ([-3, 0, 3].some(wx => Math.abs(px - wx) < 0.45) && py > 5.5 && py < 6.9) return 'dark';
+    }
+    return 'stone';
+  });
+  const [, kj] = span(0, 9), top = [];
+  cells.forEach(c => {
+    if (c.j === kj && Math.abs(ctr(c.i)) < 5 && Math.abs(ctr(c.k) - kz) < 3.5 &&
+        (Math.abs(ctr(c.i)) > 4.4 || Math.abs(ctr(c.k) - kz) > 2.9)) top.push(c);
+  });
+  const rf = addRoof(0, 9, kz, top, {type: 'box', min: new THREE.Vector3(-3.5, 9, kz - 2.5), max: new THREE.Vector3(3.5, 12, kz + 2.5)});
+  const roof = cone(7.6, 5, M.roof, rf.g, 0, 2.5, 0, 4); roof.rotation.y = Math.PI / 4; roof.scale.z = 0.72;
+  flag(0, 5, 0, 0x7c3aed, rf.g);
 }
+
+// 모든 블록을 InstancedMesh 하나로 그림
+const cellArr = [...cells.values()];
+const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(CELL * 0.985, CELL * 0.985, CELL * 0.985),
+  new THREE.MeshStandardMaterial({roughness: 0.9}), cellArr.length);
+blocks.castShadow = true; blocks.receiveShadow = true; blocks.frustumCulled = false;
+scene.add(blocks);
+const _m4 = new THREE.Matrix4(), _col = new THREE.Color(), HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
+cellArr.forEach((c, n) => { c.idx = n; _col.setHex(BLOCK[c.base]).multiplyScalar(c.shade); blocks.setColorAt(n, _col); });
+function restoreCastle(){
+  for (const c of cellArr){ c.alive = true; blocks.setMatrixAt(c.idx, _m4.makeTranslation(ctr(c.i), ctr(c.j), ctr(c.k))); }
+  blocks.instanceMatrix.needsUpdate = true;
+  for (const r of roofs){
+    Object.assign(r, {falling: false, gone: false, vy: 0});
+    r.g.position.set(r.x, r.baseY, r.z); r.g.rotation.set(0, 0, 0); r.g.visible = true;
+    if (!colliders.includes(r.col)) colliders.push(r.col);
+  }
+}
+function removeCell(c, out){
+  if (!c.alive) return;
+  c.alive = false; blocks.setMatrixAt(c.idx, HIDE); out.push(c);
+  blocks.instanceMatrix.needsUpdate = true;
+}
+restoreCastle();
 
 // ================= 목표물 =================
 const TYPES = [
@@ -424,6 +490,7 @@ const sfx = {
   thud(){ noise(0.3, 0.55, 280); },
   hit(){ noise(0.35, 0.4, 1400); [660, 880, 1320].forEach((f, i) => tone(f, 0.18 + i * 0.05, 'triangle', 0.18, i * 0.09)); },
   miss(){ tone(300, 0.25, 'triangle', 0.1, 0, 200); },
+  crumble(){ noise(0.6, 0.5, 500); noise(0.25, 0.25, 2200); },
 };
 
 // ================= 파편 =================
@@ -494,13 +561,136 @@ function collide(c, s){
     n = d > 1e-6 ? new THREE.Vector3(dx / d, dy / d, dz / d) : new THREE.Vector3(0, 1, 0);
     p.set(cx, cy, cz).addScaledVector(n, STONE_R + 0.01);
   } else {
-    const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz);
-    if (p.y > c.h + STONE_R || d > c.r + STONE_R) return false;
+    const dx = p.x - c.x, dz = p.z - c.z, d = Math.hypot(dx, dz), y0 = c.y0 || 0;
+    if (p.y > c.h + STONE_R || p.y < y0 - STONE_R || d > c.r + STONE_R) return false;
     if (p.y > c.h){ n = new THREE.Vector3(0, 1, 0); p.y = c.h + STONE_R; }
+    else if (y0 > 0 && p.y < y0){ n = new THREE.Vector3(0, -1, 0); p.y = y0 - STONE_R; }
     else { n = new THREE.Vector3(dx / d, 0, dz / d); p.x = c.x + n.x * (c.r + STONE_R + 0.01); p.z = c.z + n.z * (c.r + STONE_R + 0.01); }
   }
   const vn = v.dot(n);
   if (vn < 0){ v.addScaledVector(n, -1.3 * vn); v.multiplyScalar(0.55); }
+  return true;
+}
+
+// ================= 성 부수기 =================
+const BREAK_V = 7;          // 이 속력(m/s)보다 빠르면 블록을 부숨
+let crumbleT = 0;
+
+// 돌과 겹친 블록 목록
+function touchingCells(p, r){
+  const out = [];
+  const i0 = Math.floor((p.x - r) / CELL), i1 = Math.floor((p.x + r) / CELL);
+  const j0 = Math.max(0, Math.floor((p.y - r) / CELL)), j1 = Math.floor((p.y + r) / CELL);
+  const k0 = Math.floor((p.z - r) / CELL), k1 = Math.floor((p.z + r) / CELL);
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (let k = k0; k <= k1; k++){
+    const c = cellAt(i, j, k); if (!c) continue;
+    const q = new THREE.Vector3(clamp(p.x, i * CELL, (i + 1) * CELL), clamp(p.y, j * CELL, (j + 1) * CELL), clamp(p.z, k * CELL, (k + 1) * CELL));
+    const d2 = q.distanceToSquared(p);
+    if (d2 < r * r) out.push({c, q, d2});
+  }
+  return out;
+}
+
+// 중심에서 반지름 안에 있는 블록 제거 (돌 크기만큼의 구멍)
+function carve(center, rad, out){
+  const [i0, i1] = span(center.x - rad, center.x + rad), [j0, j1] = span(center.y - rad, center.y + rad), [k0, k1] = span(center.z - rad, center.z + rad);
+  for (let i = i0; i <= i1; i++) for (let j = Math.max(0, j0); j <= j1; j++) for (let k = k0; k <= k1; k++){
+    const dx = ctr(i) - center.x, dy = ctr(j) - center.y, dz = ctr(k) - center.z;
+    if (dx * dx + dy * dy + dz * dz > rad * rad) continue;
+    const c = cellAt(i, j, k); if (c) removeCell(c, out);
+  }
+}
+
+// 아래와 옆에 아무것도 없는 블록은 무너져 떨어짐
+function collapse(removed){
+  const fallen = [], cols = new Map();
+  const addCols = c => { for (let di = -1; di <= 1; di++) for (let dk = -1; dk <= 1; dk++) cols.set((c.i + di) + ',' + (c.k + dk), [c.i + di, c.k + dk]); };
+  removed.forEach(addCols);
+  let minJ = Math.max(1, Math.min(...removed.map(c => c.j)));
+  for (let pass = 0; pass < 4; pass++){
+    const before = fallen.length;
+    for (let j = minJ; j <= 34; j++){
+      for (const [i, k] of cols.values()){
+        const c = cellAt(i, j, k);
+        if (!c || cellAt(i, j - 1, k)) continue;
+        if (cellAt(i + 1, j, k) || cellAt(i - 1, j, k) || cellAt(i, j, k + 1) || cellAt(i, j, k - 1)) continue;
+        removeCell(c, fallen);
+      }
+    }
+    if (fallen.length === before) break;
+    fallen.slice(before).forEach(addCols);
+  }
+  return fallen;
+}
+
+const chipMatOf = base => chipMats[base] || (chipMats[base] = mat(BLOCK[base]));
+function blockDebris(list, dir, speed, per){
+  for (const c of list){
+    for (let q = 0; q < per; q++){
+      if (parts.length > 600) return;
+      const m = new THREE.Mesh(chipGeo, chipMatOf(c.base));
+      m.castShadow = true; m.scale.setScalar(rand(0.7, 1.8));
+      m.position.set(ctr(c.i) + rand(-0.2, 0.2), ctr(c.j) + rand(-0.2, 0.2), ctr(c.k) + rand(-0.2, 0.2));
+      const v = new THREE.Vector3(rand(-1, 1), rand(0.2, 1.2), rand(-1, 1)).multiplyScalar(rand(1.2, 4));
+      if (dir) v.addScaledVector(dir, speed * rand(0.1, 0.3));
+      scene.add(m);
+      parts.push({m, v, life: rand(1.6, 2.8), dust: false, spin: rand(-8, 8)});
+    }
+  }
+}
+
+function checkRoofs(){
+  for (const r of roofs){
+    if (r.falling) continue;
+    const alive = r.support.reduce((n, c) => n + (c.alive ? 1 : 0), 0);
+    if (alive < r.support.length * 0.7){
+      r.falling = true; r.vy = 0; r.spin = rand(-1.2, 1.2) || 0.6;
+      const i = colliders.indexOf(r.col); if (i >= 0) colliders.splice(i, 1);
+      noise(0.9, 0.45, 350);
+    }
+  }
+}
+function updateRoofs(dt){
+  for (const r of roofs){
+    if (!r.falling || r.gone) continue;
+    r.vy -= G * dt; r.g.position.y += r.vy * dt;
+    r.g.rotation.z += r.spin * dt; r.g.rotation.x += r.spin * 0.6 * dt;
+    if (r.g.position.y <= 0.6){
+      r.gone = true; r.g.visible = false;
+      const p = r.g.position.clone(); p.y = 1;
+      burst(p, 0xb8463c, 30, 7); burst(p, 0, 10, 5, true);
+      sfx.crumble();
+    }
+  }
+}
+
+// 돌이 블록에 닿았을 때: 빠르면 부수며 뚫고, 느리면 튕김
+function hitBlocks(s){
+  const p = s.pos;
+  if (p.y > 17 || Math.abs(p.x) > C.half + 4 || Math.abs(p.z - C.cz) > C.half + 4) return false;
+  const touching = touchingCells(p, STONE_R);
+  if (!touching.length) return false;
+  const speed = s.vel.length();
+  if (speed > BREAK_V){
+    const dir = s.vel.clone().divideScalar(speed), removed = [];
+    carve(p.clone().addScaledVector(dir, STONE_R * 0.5), STONE_R + 0.12, removed);
+    touching.forEach(t => removeCell(t.c, removed));       // 돌이 끼지 않도록
+    s.vel.multiplyScalar(clamp(1 - removed.length * 0.035, 0.4, 0.97));   // 많이 부술수록 느려짐
+    const fallen = collapse(removed);
+    blockDebris(removed, dir, speed, 2);
+    blockDebris(fallen, null, 0, 1);
+    if (removed.length >= 3 && parts.length < 300) burst(p, 0, 2, 3, true);
+    checkRoofs();
+    if (crumbleT <= 0){ sfx.crumble(); crumbleT = 0.15; }
+    return true;
+  }
+  let best = touching[0];
+  for (const t of touching) if (t.d2 < best.d2) best = t;
+  const d = Math.sqrt(best.d2);
+  const n = d > 1e-6 ? p.clone().sub(best.q).divideScalar(d) : s.vel.clone().normalize().negate();
+  p.copy(best.q).addScaledVector(n, STONE_R + 0.01);
+  const vn = s.vel.dot(n);
+  if (vn < 0){ s.vel.addScaledVector(n, -1.3 * vn); s.vel.multiplyScalar(0.55); }
   return true;
 }
 
@@ -525,6 +715,7 @@ function stepShot(dt){
     const d = Math.hypot(s.pos.x - t.x, s.pos.z - t.z);
     if (d < t.r + STONE_R && s.pos.y < t.h + STONE_R){ hitTarget(t); return; }
   }
+  if (hitBlocks(s)) firstImpact(s);
   for (const c of colliders){ if (collide(c, s)) firstImpact(s); }
 
   const gy = groundY(s.pos.x, s.pos.z);
@@ -732,6 +923,7 @@ $('bInvR').addEventListener('click', () => { sensor.invR = !sensor.invR; syncSen
 function newGame(){
   targets.slice().forEach(removeTarget);
   score = 0; stones = TOTAL_STONES; combo = 0; hits = 0; shots = 0; wind = 0; landMarks = [];
+  restoreCastle();
   for (let i = 0; i < 3; i++) spawnTarget();
   if (stone) scene.remove(stone);
   if (stone && stone.parent) stone.parent.remove(stone);
@@ -879,6 +1071,8 @@ function updateGame(dt){
 
   flags.forEach(f => f.mesh.rotation.y = Math.sin(now * 3 + f.ph) * 0.35 + (wind > 0 ? 0 : Math.PI) * 0);
 
+  updateRoofs(dt);
+  if (crumbleT > 0) crumbleT -= dt;
   if (msgTimer > 0){ msgTimer -= dt; if (msgTimer <= 0) $('msg').classList.remove('show'); }
 }
 
@@ -919,7 +1113,7 @@ function frame(){
   requestAnimationFrame(frame);
 }
 frame();
-window.__game = {aim, get state(){ return state; }, fire: p => { if (state === 'ready'){ aim.power = p; fire(); } }, get targets(){ return targets; }};
+window.__game = {aim, get state(){ return state; }, fire: p => { if (state === 'ready'){ aim.power = p; fire(); } }, get targets(){ return targets; }, get broken(){ return cellArr.filter(c => !c.alive).length; }, get roofsDown(){ return roofs.filter(r => r.falling).length; }};
 </script>
 </body>
 </html>

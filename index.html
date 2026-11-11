@@ -45,6 +45,10 @@
   #gaugeTxt{color:#fff;font-weight:800;font-size:13px;text-shadow:0 1px 3px rgba(0,0,0,.6);text-align:center}
   #bScout{background:var(--panel);padding:10px 12px;font-size:14px}
   #bScout.on{background:#2563eb}
+  #bTrail{background:var(--panel);padding:10px 12px;font-size:14px}
+  #bTrail.on{background:#ca8a04}
+  #bSide{background:var(--panel);padding:10px 12px;font-size:14px}
+  #bSide.on{background:#7c3aed}
   .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(10,15,28,.55);padding:16px;z-index:10}
   .overlay .box{background:#fffdf7;color:#2a2116;border-radius:20px;padding:24px 26px;max-width:560px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.35)}
   .overlay h1{margin:0 0 6px;font-size:30px}
@@ -120,6 +124,8 @@
 </div>
 
 <div id="right">
+  <button id="bTrail" class="on">〰️ 궤적</button>
+  <button id="bSide">📐 옆에서</button>
   <button id="bScout">🔭 정찰</button>
   <div id="gaugeTxt">0 m/s</div>
   <div id="gauge"><div id="gaugeFill"></div></div>
@@ -261,10 +267,13 @@ function groundY(x, z){
 }
 
 // 나무
+const trees = [];
 function tree(x, z, s){
-  cyl(0.25 * s, 0.35 * s, 2 * s, M.trunk, scene, x, s, z, 8);
-  cone(1.6 * s, 3 * s, M.leaf, scene, x, 3 * s, z, 9);
-  cone(1.2 * s, 2.4 * s, M.leaf2, scene, x, 4.4 * s, z, 9);
+  const g = new THREE.Group(); scene.add(g);
+  cyl(0.25 * s, 0.35 * s, 2 * s, M.trunk, g, x, s, z, 8);
+  cone(1.6 * s, 3 * s, M.leaf, g, x, 3 * s, z, 9);
+  cone(1.2 * s, 2.4 * s, M.leaf2, g, x, 4.4 * s, z, 9);
+  trees.push({g, x, z});
 }
 for (let i = 0; i < 70;){
   const x = rand(-110, 110), z = rand(-140, 40);
@@ -639,9 +648,45 @@ function fire(){
 }
 // foe: 상대가 쏜 돌인지, w: 그 돌에 부는 바람(지금 화면 기준)
 function makeShot(p0, vel, v0, elev, yaw, foe, w, mesh){
+  const trail = newTrail(foe); trailAdd(trail, p0, true);
   return {pos: p0.clone(), vel, v0, t: 0, maxH: p0.y, start: p0.clone(), dir: new THREE.Vector3(vel.x, 0, vel.z).normalize(),
-          impact: null, impactT: 0, stopped: false, hit: false, elev, yaw, foe, wind: w, mesh, broken: 0, crown: false};
+          impact: null, impactT: 0, stopped: false, hit: false, elev, yaw, foe, wind: w, mesh, broken: 0, crown: false, trail};
 }
+
+// ================= 궤적 (이전 발사가 지나간 길) =================
+const TRAIL_MAX = 400;
+const TRAIL_COLORS = [0xfde047, 0x38bdf8, 0xf97316, 0xa3e635, 0xf472b6];
+const trails = [];
+let trailOn = true, trailIdx = 0;
+function newTrail(foe){
+  const pos = new Float32Array(TRAIL_MAX * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setDrawRange(0, 0);
+  const color = foe ? 0xef4444 : TRAIL_COLORS[trailIdx++ % TRAIL_COLORS.length];
+  // 거리와 상관없이 화면에서 3.5픽셀 크기의 가는 점
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({color, size: 3.5, sizeAttenuation: false, transparent: true, opacity: 0.95, depthWrite: false}));
+  pts.frustumCulled = false; pts.visible = trailOn; scene.add(pts);
+  const tr = {pts, geo, pos, n: 0, foe, last: new THREE.Vector3()};
+  // 새 궤적만 진하게, 예전 궤적은 흐리게. 내 것은 5개, 상대 것은 3개까지
+  trails.forEach(t => { if (t.foe === foe) t.pts.material.opacity = 0.4; });
+  trails.push(tr);
+  const same = trails.filter(t => t.foe === foe);
+  if (same.length > (foe ? 3 : 5)) removeTrail(same[0]);
+  return tr;
+}
+function removeTrail(t){
+  scene.remove(t.pts); t.geo.dispose(); t.pts.material.dispose();
+  trails.splice(trails.indexOf(t), 1);
+}
+// 0.45 m마다 점 하나 (force면 거리와 상관없이)
+function trailAdd(tr, p, force){
+  if (!tr || tr.n >= TRAIL_MAX) return;
+  if (!force && tr.n && tr.last.distanceToSquared(p) < 0.2) return;
+  tr.pos[tr.n * 3] = p.x; tr.pos[tr.n * 3 + 1] = p.y; tr.pos[tr.n * 3 + 2] = p.z;
+  tr.n++; tr.last.copy(p);
+  tr.geo.setDrawRange(0, tr.n); tr.geo.attributes.position.needsUpdate = true;
+}
+function clearTrails(){ while (trails.length) removeTrail(trails[0]); trailIdx = 0; }
 function launch(){
   const p0 = launchPoint();
   bucket.remove(stone); scene.add(stone); stone.position.copy(p0);
@@ -817,6 +862,7 @@ function hitBlocks(s){
 function firstImpact(s){
   if (s.impact) return;
   s.impact = s.pos.clone(); s.impactT = s.t;
+  trailAdd(s.trail, s.pos, true);
   sfx.thud(); burst(s.pos, 0, 6, 3, true);
 }
 
@@ -829,6 +875,7 @@ function stepShot(dt){
   s.maxH = Math.max(s.maxH, s.pos.y);
   s.mesh.position.copy(s.pos);
   s.mesh.rotation.x -= dt * 6; s.mesh.rotation.z += dt * 2;
+  if (!s.impact) trailAdd(s.trail, s.pos);          // 처음 부딪히기 전까지만 기록
 
   for (const t of targets){
     if (t.dying || t.side !== (s.foe ? 'me' : 'foe')) continue;
@@ -855,7 +902,7 @@ function stepShot(dt){
 function hitTarget(t){
   const s = shot;
   s.hit = true; s.stopped = true;
-  if (!s.impact){ s.impact = s.pos.clone(); s.impactT = s.t; }
+  if (!s.impact){ s.impact = s.pos.clone(); s.impactT = s.t; trailAdd(s.trail, s.pos, true); }
   if (mode === 'duel'){
     s.crown = true; t.dying = 0.01;
     const c = new THREE.Vector3(t.x, t.h * 0.5, t.z);
@@ -988,10 +1035,24 @@ window.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') aim.yaw = clamp(aim.yaw + 1, -YAW_MAX, YAW_MAX);
   $('sElev').value = aim.elev; $('sYaw').value = aim.yaw;
 });
+$('bTrail').addEventListener('click', () => {
+  trailOn = !trailOn; $('bTrail').classList.toggle('on', trailOn);
+  trails.forEach(t => t.pts.visible = trailOn);
+});
 $('bScout').addEventListener('click', () => {
   if (!canAim()) return;
   scout = !scout; $('bScout').classList.toggle('on', scout);
+  if (scout) setSide(false);
 });
+// 옆에서 보기: 포물선 모양을 옆에서 비교 (발사·비행 중에도 유지)
+let side = false;
+function setSide(on){
+  side = on; $('bSide').classList.toggle('on', on);
+  if (on){ scout = false; $('bScout').classList.remove('on'); }
+  // 카메라와 경기장 사이(오른쪽)의 나무는 옆에서 볼 때 가리지 않게 숨김
+  trees.forEach(t => t.g.visible = !(on && t.x > 0 && t.z < 20 && t.z > -100));
+}
+$('bSide').addEventListener('click', () => setSide(!side));
 
 // ================= 기울기 센서 =================
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1082,6 +1143,7 @@ function resetField(){
   stone = newStone(); armA = ARM_REST; shot = null; shotAcc = 0; aim.power = 0;
   landMarks = []; scout = false; $('bScout').classList.remove('on');
   for (let i = parts.length - 1; i >= 0; i--){ scene.remove(parts[i].m); parts.splice(i, 1); }
+  clearTrails();
   $('intro').style.display = 'none'; $('over').style.display = 'none'; $('lobby').style.display = 'none';
   $('shotInfo').style.display = 'none'; $('hint').textContent = HINT_AIM; $('hint').style.opacity = 1;
   $('again').style.display = '';
@@ -1386,7 +1448,13 @@ const camPos = new THREE.Vector3(0, 9, 15), camLook = new THREE.Vector3(0, 2, -5
 function updateCamera(dt){
   const f = fwd(), up = new THREE.Vector3(0, 1, 0);
   let tp, tl, fov = 50, k = 3;
-  if (scout && canAim()){
+  if (side && state !== 'watching' && state !== 'watchAfter' && state !== 'intro'){
+    // 투석기(z=0)부터 성 뒤(z≈-66)까지 화면 가로에 다 들어오도록 거리 계산
+    fov = 50;
+    const half = Math.atan(Math.tan(fov * DEG / 2) * camera.aspect);
+    const d = clamp(38 / Math.tan(half), 40, 140);
+    tp = new THREE.Vector3(d, 9 + d * 0.08, -31); tl = new THREE.Vector3(0, 7, -31); k = 4;
+  } else if (scout && canAim()){
     tp = new THREE.Vector3(0, 50, -16); tl = new THREE.Vector3(0, 0, C.cz - 4); fov = 45;
   } else if (state === 'watching' && shot && shot.foe){
     // 방어 시점: 우리 성 위에서 날아오는 상대 돌을 바라봄
